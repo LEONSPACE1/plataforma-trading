@@ -1,0 +1,46 @@
+import { catalogName } from "./catalog";
+import { finnhubQuote } from "./finnhub";
+import type { Candle, ChartRange, Quote } from "./types";
+import { yahooCandles, yahooQuote } from "./yahoo";
+
+/** Plain US tickers (AAPL, BRK.B, SPY) — not indices (^), FX (=X) or foreign listings (.CL). */
+export function isUsListing(symbol: string): boolean {
+  return /^[A-Z]{1,5}(\.[AB])?$/.test(symbol);
+}
+
+/**
+ * Real-time Finnhub quote for US listings when a key is configured, Yahoo
+ * otherwise. Falls back to Yahoo if Finnhub fails so one provider's outage
+ * doesn't blank the screen.
+ */
+export async function getQuote(symbol: string, finnhubKey = process.env.FINNHUB_API_KEY): Promise<Quote> {
+  let quote: Quote;
+  if (finnhubKey && isUsListing(symbol)) {
+    try {
+      quote = await finnhubQuote(symbol, finnhubKey);
+    } catch {
+      quote = await yahooQuote(symbol);
+    }
+  } else {
+    quote = await yahooQuote(symbol);
+  }
+  return { ...quote, name: quote.name ?? catalogName(symbol) };
+}
+
+export type QuoteResult = { symbol: string; quote?: Quote; error?: string };
+
+export async function getQuotes(symbols: string[]): Promise<QuoteResult[]> {
+  return Promise.all(
+    symbols.map(async (symbol) => {
+      try {
+        return { symbol, quote: await getQuote(symbol) };
+      } catch (e) {
+        return { symbol, error: e instanceof Error ? e.message : String(e) };
+      }
+    }),
+  );
+}
+
+export function getCandles(symbol: string, range: ChartRange): Promise<Candle[]> {
+  return yahooCandles(symbol, range);
+}
