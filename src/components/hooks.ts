@@ -127,3 +127,45 @@ export function useWatchlists() {
 
   return { lists, error, addSymbol, removeSymbol, createList, deleteList };
 }
+
+/**
+ * The signed-in user's rows of one table (RLS limits them to their own),
+ * reloaded whenever any device changes the table through Supabase Realtime.
+ */
+export function useOwnRows<T>(table: string, order: { column: string; ascending?: boolean } = { column: "created_at" }) {
+  const [rows, setRows] = useState<T[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const { column, ascending = true } = order;
+
+  const reload = useCallback(async () => {
+    const { data, error } = await supabase().from(table).select("*").order(column, { ascending });
+    setError(error?.message ?? null);
+    if (!error) setRows((data ?? []) as T[]);
+  }, [table, column, ascending]);
+
+  useEffect(() => {
+    // Initial load; setState happens after the awaited query, not synchronously.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    reload();
+    const channel = supabase()
+      .channel(`${table}-sync-${Math.random().toString(36).slice(2)}`)
+      .on("postgres_changes", { event: "*", schema: "public", table }, reload)
+      .subscribe();
+    return () => {
+      supabase().removeChannel(channel);
+    };
+  }, [table, reload]);
+
+  /** Runs a write and reloads; returns the error message, if any. */
+  const mutate = useCallback(
+    async (write: (db: ReturnType<typeof supabase>) => PromiseLike<{ error: { message: string } | null }>) => {
+      const { error } = await write(supabase());
+      setError(error?.message ?? null);
+      await reload();
+      return error?.message ?? null;
+    },
+    [reload],
+  );
+
+  return { rows, error, mutate };
+}

@@ -68,7 +68,7 @@ export type AnalysisInput = {
 };
 
 const TECHNICAL_WEIGHT = 0.6;
-const BUY_THRESHOLD = 0.3;
+const BUY_SCORE = 30;
 const MIN_CANDLES = 35; // MACD needs 26 + 9 sessions before it says anything
 
 const num = (v: number, digits = 2) => v.toLocaleString("es-CO", { maximumFractionDigits: digits });
@@ -255,6 +255,11 @@ export function fundamentalFactors(
   return { factors, snapshot, notes };
 }
 
+/** Buy / hold / sell for a score from -100 to 100 (the combined or the technical-only score). */
+export function verdictFor(score: number): Verdict {
+  return score >= BUY_SCORE ? "comprar" : score <= -BUY_SCORE ? "vender" : "mantener";
+}
+
 const mean = (votes: Vote[]) => votes.reduce<number>((s, v) => s + v, 0) / votes.length;
 
 export function analyze({ quote, candles, dividends = [], fundamentals }: AnalysisInput): Analysis {
@@ -274,7 +279,7 @@ export function analyze({ quote, candles, dividends = [], fundamentals }: Analys
   const fundamentalScore = fund.factors.length >= 2 ? mean(fund.factors.map((f) => f.vote)) : null;
   const combined =
     fundamentalScore == null ? technicalScore : TECHNICAL_WEIGHT * technicalScore + (1 - TECHNICAL_WEIGHT) * fundamentalScore;
-  const verdict: Verdict = combined >= BUY_THRESHOLD ? "comprar" : combined <= -BUY_THRESHOLD ? "vender" : "mantener";
+  const verdict = verdictFor(Math.round(combined * 100));
 
   const factors = [...tech.factors, ...fund.factors];
   return {

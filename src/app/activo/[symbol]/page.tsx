@@ -6,7 +6,9 @@ import { RequireAuth } from "@/components/auth";
 import { changeClass, formatChange, formatPrice } from "@/components/format";
 import { Header } from "@/components/header";
 import { useQuotes, useWatchlists } from "@/components/hooks";
+import { AlertForm } from "@/components/alert-form";
 import { AnalysisPanel } from "@/components/analysis-panel";
+import { PositionForm } from "@/components/position-form";
 import { PriceChart, STUDIES, type Study } from "@/components/price-chart";
 import { catalogName } from "@/lib/market/catalog";
 import type { Candle, ChartRange } from "@/lib/market/types";
@@ -130,6 +132,16 @@ function Asset() {
           </div>
         </section>
       )}
+
+      <section className="mt-6">
+        <h2 className="pb-2 font-semibold">Registrar una compra</h2>
+        <PositionForm key={symbol} symbol={symbol} price={quote?.price} />
+      </section>
+
+      <section className="mt-6">
+        <h2 className="pb-2 font-semibold">Crear alerta</h2>
+        <AlertForm key={symbol} symbol={symbol} price={quote?.price} />
+      </section>
     </main>
   );
 }

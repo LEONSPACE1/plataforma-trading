@@ -1,15 +1,22 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import type { SearchResult } from "@/lib/market/types";
 import { apiFetch, supabase } from "@/lib/supabase/client";
 import { useSession } from "./auth";
 
+const NAV = [
+  { href: "/", label: "Mercado" },
+  { href: "/portafolio", label: "Portafolio" },
+  { href: "/alertas", label: "Alertas" },
+];
+
 export function Header() {
   const session = useSession();
   const router = useRouter();
+  const pathname = usePathname();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
 
@@ -67,6 +74,17 @@ export function Header() {
           Salir
         </button>
       </div>
+      <nav className="mx-auto flex max-w-5xl gap-4 px-4 pb-2 text-sm">
+        {NAV.map((n) => (
+          <Link
+            key={n.href}
+            href={n.href}
+            className={pathname === n.href ? "font-semibold text-accent" : "text-muted hover:text-foreground"}
+          >
+            {n.label}
+          </Link>
+        ))}
+      </nav>
     </header>
   );
 }
