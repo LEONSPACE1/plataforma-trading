@@ -1,3 +1,4 @@
+import { mergeTrailingPoint } from "./live";
 import type { Candle, ChartRange, Dividend, Fundamentals, Quote, SearchResult } from "./types";
 
 // Yahoo Finance's public (unofficial) endpoints. Free and keyless, but they can
@@ -92,7 +93,7 @@ export function parseYahooCandles(data: YahooChartResponse): Candle[] {
     if (open == null || high == null || low == null || close == null) continue;
     candles.push({ time: ts[i], open, high, low, close, volume: q.volume[i] ?? 0 });
   }
-  return candles;
+  return mergeTrailingPoint(candles);
 }
 
 export async function yahooQuote(symbol: string): Promise<Quote> {

@@ -99,7 +99,7 @@ function Asset() {
 
       {current?.data ? (
         current.data.length ? (
-          <PriceChart candles={current.data} studies={studies} />
+          <PriceChart candles={current.data} studies={studies} live={quote} />
         ) : (
           <p className="py-10 text-muted">No hay velas para este rango.</p>
         )
