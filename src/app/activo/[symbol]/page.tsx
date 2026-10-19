@@ -6,7 +6,8 @@ import { RequireAuth } from "@/components/auth";
 import { changeClass, formatChange, formatPrice } from "@/components/format";
 import { Header } from "@/components/header";
 import { useQuotes, useWatchlists } from "@/components/hooks";
-import { PriceChart } from "@/components/price-chart";
+import { AnalysisPanel } from "@/components/analysis-panel";
+import { PriceChart, STUDIES, type Study } from "@/components/price-chart";
 import { catalogName } from "@/lib/market/catalog";
 import type { Candle, ChartRange } from "@/lib/market/types";
 import { apiFetch } from "@/lib/supabase/client";
@@ -32,7 +33,9 @@ export default function AssetPage() {
 function Asset() {
   const params = useParams<{ symbol: string }>();
   const symbol = decodeURIComponent(params.symbol).toUpperCase();
-  const [range, setRange] = useState<ChartRange>("6mo");
+  // One year by default so the 200-day average fits on the chart.
+  const [range, setRange] = useState<ChartRange>("1y");
+  const [studies, setStudies] = useState<Study[]>(["medias"]);
   const [candles, setCandles] = useState<{ key: string; data?: Candle[]; error?: string } | null>(null);
   const { results } = useQuotes([symbol]);
   const quote = results[symbol]?.quote;
@@ -79,11 +82,24 @@ function Asset() {
             {r.label}
           </button>
         ))}
+        <span className="mx-1 h-5 w-px bg-line" />
+        {STUDIES.map((s) => {
+          const on = studies.includes(s.value);
+          return (
+            <button
+              key={s.value}
+              onClick={() => setStudies(on ? studies.filter((x) => x !== s.value) : [...studies, s.value])}
+              className={`rounded-md px-3 py-1 text-sm ${on ? "bg-foreground text-background" : "border border-line"}`}
+            >
+              {s.label}
+            </button>
+          );
+        })}
       </div>
 
       {current?.data ? (
         current.data.length ? (
-          <PriceChart candles={current.data} />
+          <PriceChart candles={current.data} studies={studies} />
         ) : (
           <p className="py-10 text-muted">No hay velas para este rango.</p>
         )
@@ -92,6 +108,8 @@ function Asset() {
       ) : (
         <p className="py-10 text-muted">Cargando gráfico…</p>
       )}
+
+      <AnalysisPanel symbol={symbol} />
 
       {lists && lists.length > 0 && (
         <section className="mt-6">

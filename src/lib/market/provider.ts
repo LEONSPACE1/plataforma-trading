@@ -1,7 +1,8 @@
+import { analyze, type Analysis } from "../analysis/signal";
 import { catalogName } from "./catalog";
 import { finnhubQuote } from "./finnhub";
 import type { Candle, ChartRange, Quote } from "./types";
-import { yahooCandles, yahooQuote } from "./yahoo";
+import { yahooCandles, yahooDailyHistory, yahooFundamentals, yahooQuote } from "./yahoo";
 
 /** Plain US tickers (AAPL, BRK.B, SPY) — not indices (^), FX (=X) or foreign listings (.CL). */
 export function isUsListing(symbol: string): boolean {
@@ -43,4 +44,27 @@ export async function getQuotes(symbols: string[]): Promise<QuoteResult[]> {
 
 export function getCandles(symbol: string, range: ChartRange): Promise<Candle[]> {
   return yahooCandles(symbol, range);
+}
+
+/** Indices (^GSPC), FX (USDCOP=X) and futures (DX-Y.NYB) have no company reports to read. */
+export function hasFundamentals(symbol: string): boolean {
+  return !/[\^=]|-Y\./.test(symbol);
+}
+
+/**
+ * Technical + fundamental signal for one asset, on two years of daily candles.
+ * Fundamentals are optional: if Yahoo has none (ETFs, some BVC preferreds) the
+ * signal is technical only.
+ */
+export async function getAnalysis(symbol: string): Promise<Analysis & { name?: string }> {
+  const [history, live, fundamentals] = await Promise.all([
+    yahooDailyHistory(symbol),
+    getQuote(symbol).catch(() => null),
+    hasFundamentals(symbol) ? yahooFundamentals(symbol).catch(() => null) : null,
+  ]);
+  const quote = live ?? history.quote;
+  return {
+    ...analyze({ quote, candles: history.candles, dividends: history.dividends, fundamentals }),
+    name: quote.name ?? history.quote.name ?? catalogName(symbol),
+  };
 }
