@@ -18,11 +18,17 @@ export function supabase(): SupabaseClient {
   return client;
 }
 
-/** fetch() to our own /api routes with the signed-in user's token attached. */
-export async function apiFetch<T>(path: string): Promise<T> {
+/** fetch() to our own /api routes with the signed-in user's token attached; `body` is sent as JSON. */
+export async function apiFetch<T>(path: string, init?: { method?: string; body?: unknown }): Promise<T> {
   const { data } = await supabase().auth.getSession();
   const token = data.session?.access_token;
-  const res = await fetch(path, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+  const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
+  if (init?.body !== undefined) headers["Content-Type"] = "application/json";
+  const res = await fetch(path, {
+    method: init?.method ?? (init?.body !== undefined ? "POST" : "GET"),
+    headers,
+    body: init?.body !== undefined ? JSON.stringify(init.body) : undefined,
+  });
   const body = await res.json();
   if (!res.ok) throw new Error(body?.error ?? `HTTP ${res.status}`);
   return body as T;
