@@ -29,6 +29,7 @@ function alert(extra: Partial<Alert>): Alert {
     target: 200,
     active: true,
     last_verdict: null,
+    last_state: null,
     last_checked_at: null,
     last_triggered_at: null,
     created_at: "2026-10-19T00:00:00Z",

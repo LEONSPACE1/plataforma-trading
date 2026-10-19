@@ -52,3 +52,23 @@ export type Fundamentals = {
   totalDebt?: number;
   equity?: number;
 };
+
+export type NewsItem = {
+  id: string;
+  title: string;
+  publisher: string;
+  url: string;
+  /** Unix seconds. */
+  time: number;
+  related: string[];
+};
+
+export type EarningsEvent = {
+  symbol: string;
+  /** YYYY-MM-DD. */
+  date: string;
+  /** "bmo" before the open, "amc" after the close, "dmh" during market hours. */
+  hour: string | null;
+  epsEstimate: number | null;
+  revenueEstimate: number | null;
+};

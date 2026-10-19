@@ -1,5 +1,5 @@
 import type { Candle, Dividend, Fundamentals, Quote } from "../market/types";
-import { bollinger, last, macd, rsi, sma, type Series } from "./indicators";
+import { bollinger, last, macd, rsi, sma, type Bollinger, type Macd, type Series } from "./indicators";
 
 // Turns indicators and fundamentals into an explained buy / hold / sell signal.
 // Every rule votes +1 (favorable), 0 (neutral) or -1 (unfavorable) and says why
@@ -74,9 +74,9 @@ const MIN_CANDLES = 35; // MACD needs 26 + 9 sessions before it says anything
 const num = (v: number, digits = 2) => v.toLocaleString("es-CO", { maximumFractionDigits: digits });
 const pct = (v: number) => `${num(v * 100, 1)} %`;
 
-function crossedWithin(a: Series, b: Series, bars: number): "arriba" | "abajo" | null {
-  const n = a.length;
-  for (let i = n - 1; i >= Math.max(1, n - bars); i--) {
+/** Whether series `a` crossed `b` in the `bars` sessions ending at index `end`, and which way. */
+function crossedWithin(a: Series, b: Series, bars: number, end = a.length - 1): "arriba" | "abajo" | null {
+  for (let i = end; i >= Math.max(1, end - bars + 1); i--) {
     const [a0, a1, b0, b1] = [a[i - 1], a[i], b[i - 1], b[i]];
     if (a0 == null || a1 == null || b0 == null || b1 == null) return null;
     if (a0 <= b0 && a1 > b1) return "arriba";
@@ -85,40 +85,78 @@ function crossedWithin(a: Series, b: Series, bars: number): "arriba" | "abajo" |
   return null;
 }
 
-export function technicalFactors(candles: Candle[]): { factors: Factor[]; snapshot: TechnicalSnapshot } {
+export type Indicators = {
+  closes: number[];
+  sma50: Series;
+  sma200: Series;
+  rsi14: Series;
+  macd: Macd;
+  bollinger: Bollinger;
+  vol5: Series;
+  vol50: Series;
+  volumes: number[];
+};
+
+/** Every indicator the rules use, over the whole series. Each value only looks back, so index i is what was known on day i. */
+export function computeIndicators(candles: Candle[]): Indicators {
   const closes = candles.map((c) => c.close);
-  const price = closes.at(-1)!;
-  const s20 = sma(closes, 20);
-  const s50 = sma(closes, 50);
-  const s200 = sma(closes, 200);
-  const r = rsi(closes, 14);
-  const m = macd(closes);
-  const bb = bollinger(closes, 20, 2);
-
   const volumes = candles.map((c) => c.volume);
-  const hasVolume = volumes.slice(-50).filter((v) => v > 0).length >= 40;
-  const recentVol = sma(volumes, 5).at(-1) ?? null;
-  const baseVol = sma(volumes, 50).at(-1) ?? null;
-  const volumeRatio = hasVolume && recentVol != null && baseVol ? recentVol / baseVol : null;
-
-  const snapshot: TechnicalSnapshot = {
-    sma20: last(s20),
-    sma50: last(s50),
-    sma200: last(s200),
-    rsi14: last(r),
-    macd: last(m.macd),
-    macdSignal: last(m.signal),
-    macdHistogram: last(m.histogram),
-    bollingerUpper: last(bb.upper),
-    bollingerMiddle: last(bb.middle),
-    bollingerLower: last(bb.lower),
-    volumeRatio,
+  return {
+    closes,
+    sma50: sma(closes, 50),
+    sma200: sma(closes, 200),
+    rsi14: rsi(closes, 14),
+    macd: macd(closes),
+    bollinger: bollinger(closes, 20, 2),
+    vol5: sma(volumes, 5),
+    vol50: sma(volumes, 50),
+    volumes,
   };
+}
+
+export function technicalFactors(candles: Candle[]): { factors: Factor[]; snapshot: TechnicalSnapshot } {
+  const ind = computeIndicators(candles);
+  const i = candles.length - 1;
+  const factors = technicalFactorsAt(ind, i);
+  const at = (s: Series) => s[i] ?? null;
+  const snapshot: TechnicalSnapshot = {
+    sma20: last(sma(ind.closes, 20)),
+    sma50: last(ind.sma50),
+    sma200: last(ind.sma200),
+    rsi14: last(ind.rsi14),
+    macd: last(ind.macd.macd),
+    macdSignal: last(ind.macd.signal),
+    macdHistogram: last(ind.macd.histogram),
+    bollingerUpper: at(ind.bollinger.upper),
+    bollingerMiddle: at(ind.bollinger.middle),
+    bollingerLower: at(ind.bollinger.lower),
+    volumeRatio: volumeRatioAt(ind, i),
+  };
+  return { factors, snapshot };
+}
+
+function volumeRatioAt(ind: Indicators, i: number): number | null {
+  const window = ind.volumes.slice(Math.max(0, i - 49), i + 1);
+  const hasVolume = window.filter((v) => v > 0).length >= 40;
+  const recent = ind.vol5[i];
+  const base = ind.vol50[i];
+  return hasVolume && recent != null && base ? recent / base : null;
+}
+
+/** The technical rules as they read on session `i` (the last one for today's signal; any earlier one for the backtest). */
+export function technicalFactorsAt(ind: Indicators, i: number): Factor[] {
+  const price = ind.closes[i];
+  const m50 = ind.sma50[i] ?? null;
+  const m200 = ind.sma200[i] ?? null;
+  const rsiValue = ind.rsi14[i] ?? null;
+  const histogram = ind.macd.histogram[i] ?? null;
+  const up = ind.bollinger.upper[i] ?? null;
+  const lo = ind.bollinger.lower[i] ?? null;
+  const volumeRatio = volumeRatioAt(ind, i);
 
   const factors: Factor[] = [];
   const add = (name: string, vote: Vote, detail: string) => factors.push({ group: "tecnico", name, vote, detail });
 
-  const { sma50: m50, sma200: m200 } = snapshot;
   if (m200 != null) {
     const gap = price / m200 - 1;
     add(
@@ -128,12 +166,12 @@ export function technicalFactors(candles: Candle[]): { factors: Factor[]; snapsh
     );
   }
   if (m50 != null && m200 != null) {
-    const cross = crossedWithin(s50, s200, 20);
-    const up = m50 > m200;
+    const cross = crossedWithin(ind.sma50, ind.sma200, 20, i);
+    const above = m50 > m200;
     add(
       "Cruce de medias 50/200",
-      up ? 1 : -1,
-      (up ? "La media de 50 está sobre la de 200 (cruce dorado)" : "La media de 50 está bajo la de 200 (cruce de la muerte)") +
+      above ? 1 : -1,
+      (above ? "La media de 50 está sobre la de 200 (cruce dorado)" : "La media de 50 está bajo la de 200 (cruce de la muerte)") +
         (cross ? `, y el cruce ocurrió en las últimas 20 sesiones.` : "."),
     );
   }
@@ -145,23 +183,22 @@ export function technicalFactors(candles: Candle[]): { factors: Factor[]; snapsh
       `El precio está ${pct(Math.abs(gap))} ${gap > 0 ? "por encima" : "por debajo"} de su media de 50 sesiones.`,
     );
   }
-  if (snapshot.rsi14 != null) {
-    const v = snapshot.rsi14;
+  if (rsiValue != null) {
+    const v = rsiValue;
     if (v < 30) add("RSI (14)", 1, `RSI en ${num(v, 1)}: zona de sobreventa, el precio ha caído mucho y suele rebotar.`);
     else if (v > 70) add("RSI (14)", -1, `RSI en ${num(v, 1)}: zona de sobrecompra, el impulso puede agotarse.`);
     else add("RSI (14)", 0, `RSI en ${num(v, 1)}: zona neutral (entre 30 y 70), impulso ${v >= 50 ? "ligeramente comprador" : "ligeramente vendedor"}.`);
   }
-  if (snapshot.macdHistogram != null) {
-    const up = snapshot.macdHistogram > 0;
-    const cross = crossedWithin(m.macd, m.signal, 5);
+  if (histogram != null) {
+    const bullish = histogram > 0;
+    const cross = crossedWithin(ind.macd.macd, ind.macd.signal, 5, i);
     add(
       "MACD (12, 26, 9)",
-      up ? 1 : -1,
-      `La línea MACD está ${up ? "por encima" : "por debajo"} de su señal: impulso ${up ? "alcista" : "bajista"}` +
+      bullish ? 1 : -1,
+      `La línea MACD está ${bullish ? "por encima" : "por debajo"} de su señal: impulso ${bullish ? "alcista" : "bajista"}` +
         (cross ? `; cruzó hacia ${cross} en las últimas 5 sesiones.` : "."),
     );
   }
-  const { bollingerUpper: up, bollingerLower: lo } = snapshot;
   if (up != null && lo != null) {
     if (price < lo) add("Bandas de Bollinger (20, 2)", 1, "El precio cerró bajo la banda inferior: está estirado a la baja y suele volver hacia la media.");
     else if (price > up) add("Bandas de Bollinger (20, 2)", -1, "El precio cerró sobre la banda superior: está estirado al alza y suele volver hacia la media.");
@@ -170,8 +207,8 @@ export function technicalFactors(candles: Candle[]): { factors: Factor[]; snapsh
       add("Bandas de Bollinger (20, 2)", 0, `El precio está dentro de las bandas, al ${num(position * 100, 0)} % del recorrido entre la inferior y la superior.`);
     }
   }
-  if (volumeRatio != null && closes.length > 5) {
-    const change = price / closes[closes.length - 6] - 1;
+  if (volumeRatio != null && i >= 5) {
+    const change = price / ind.closes[i - 5] - 1;
     const strong = volumeRatio >= 1.2;
     const vote: Vote = strong ? (change > 0 ? 1 : -1) : 0;
     add(
@@ -181,7 +218,7 @@ export function technicalFactors(candles: Candle[]): { factors: Factor[]; snapsh
         (strong ? `: hay convicción detrás del movimiento.` : ": sin volumen suficiente para confirmar el movimiento."),
     );
   }
-  return { factors, snapshot };
+  return factors;
 }
 
 export function fundamentalFactors(
@@ -260,7 +297,7 @@ export function verdictFor(score: number): Verdict {
   return score >= BUY_SCORE ? "comprar" : score <= -BUY_SCORE ? "vender" : "mantener";
 }
 
-const mean = (votes: Vote[]) => votes.reduce<number>((s, v) => s + v, 0) / votes.length;
+export const mean = (votes: Vote[]) => votes.reduce<number>((s, v) => s + v, 0) / votes.length;
 
 export function analyze({ quote, candles, dividends = [], fundamentals }: AnalysisInput): Analysis {
   if (candles.length < MIN_CANDLES) {

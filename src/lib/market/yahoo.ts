@@ -1,4 +1,4 @@
-import type { Candle, ChartRange, Dividend, Fundamentals, Quote, SearchResult } from "./types";
+import type { Candle, ChartRange, Dividend, Fundamentals, NewsItem, Quote, SearchResult } from "./types";
 
 // Yahoo Finance's public (unofficial) endpoints. Free and keyless, but they can
 // change without notice; every parser here fails soft by throwing a clear error.
@@ -112,10 +112,26 @@ export function parseYahooDividends(data: YahooChartResponse): Dividend[] {
     .sort((a, b) => a.time - b.time);
 }
 
-/** About two years of daily candles (enough for a 200-day average) plus the dividends paid in that span. */
-export async function yahooDailyHistory(symbol: string): Promise<{ quote: Quote; candles: Candle[]; dividends: Dividend[] }> {
-  const data = await fetchChart(symbol, "2y", "1d", "div");
-  return { quote: parseYahooQuote(data), candles: parseYahooCandles(data), dividends: parseYahooDividends(data) };
+/**
+ * Daily candles plus the dividends paid in that span. Two years by default
+ * (enough for a 200-day average); five for the backtest and the portfolio.
+ */
+export async function yahooDailyHistory(
+  symbol: string,
+  range: "2y" | "5y" = "2y",
+): Promise<{ quote: Quote; candles: Candle[]; dividends: Dividend[] }> {
+  const data = await fetchChart(symbol, range, "1d", "div");
+  const candles = parseYahooCandles(data);
+  const quote = parseYahooQuote(data);
+  // On multi-day ranges Yahoo's "previous close" is the close before the range
+  // starts; the day's change has to come from the last two sessions instead.
+  const prev = candles.at(-2)?.close;
+  if (prev) {
+    quote.previousClose = prev;
+    quote.change = quote.price - prev;
+    quote.changePercent = (quote.change / prev) * 100;
+  }
+  return { quote, candles, dividends: parseYahooDividends(data) };
 }
 
 // Trailing-twelve-month figures for margins and EPS; latest quarter (annual as
@@ -168,6 +184,7 @@ export async function yahooFundamentals(symbol: string): Promise<Fundamentals> {
 
 type YahooSearchResponse = {
   quotes?: { symbol?: string; shortname?: string; longname?: string; exchDisp?: string; quoteType?: string }[];
+  news?: { uuid?: string; title?: string; publisher?: string; link?: string; providerPublishTime?: number; relatedTickers?: string[] }[];
 };
 
 export function parseYahooSearch(data: YahooSearchResponse): SearchResult[] {
@@ -179,6 +196,28 @@ export function parseYahooSearch(data: YahooSearchResponse): SearchResult[] {
       exchange: q.exchDisp ?? "",
       type: q.quoteType ?? "",
     }));
+}
+
+export function parseYahooNews(data: YahooSearchResponse): NewsItem[] {
+  return (data.news ?? [])
+    .filter((n) => n.title && n.link?.startsWith("https://"))
+    .map((n) => ({
+      id: n.uuid ?? n.link!,
+      title: n.title!,
+      publisher: n.publisher ?? "",
+      url: n.link!,
+      time: n.providerPublishTime ?? 0,
+      related: [...new Set(n.relatedTickers ?? [])],
+    }))
+    .sort((a, b) => b.time - a.time);
+}
+
+/** Recent headlines about a symbol (mostly in English), from the same search endpoint, which needs no crumb. */
+export async function yahooNews(symbol: string, count = 10): Promise<NewsItem[]> {
+  const url = `${SEARCH_URL}?q=${encodeURIComponent(symbol)}&quotesCount=0&newsCount=${count}`;
+  const res = await fetch(url, { headers: HEADERS, cache: "no-store" });
+  if (!res.ok) throw new Error(`Yahoo noticias: HTTP ${res.status}`);
+  return parseYahooNews((await res.json()) as YahooSearchResponse);
 }
 
 export async function yahooSearch(query: string): Promise<SearchResult[]> {

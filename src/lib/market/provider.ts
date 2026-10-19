@@ -54,17 +54,23 @@ export function hasFundamentals(symbol: string): boolean {
 /**
  * Technical + fundamental signal for one asset, on two years of daily candles.
  * Fundamentals are optional: if Yahoo has none (ETFs, some BVC preferreds) the
- * signal is technical only.
+ * signal is technical only. `live: false` uses the last daily close instead
+ * of a fresh quote.
  */
-export async function getAnalysis(symbol: string): Promise<Analysis & { name?: string }> {
+export async function getAnalysis(
+  symbol: string,
+  { live: useLive = true } = {},
+): Promise<Analysis & { name?: string; changePercent: number }> {
   const [history, live, fundamentals] = await Promise.all([
     yahooDailyHistory(symbol),
-    getQuote(symbol).catch(() => null),
+    // The screener skips the live quote to stay within Finnhub's per-minute limit.
+    useLive ? getQuote(symbol).catch(() => null) : null,
     hasFundamentals(symbol) ? yahooFundamentals(symbol).catch(() => null) : null,
   ]);
   const quote = live ?? history.quote;
   return {
     ...analyze({ quote, candles: history.candles, dividends: history.dividends, fundamentals }),
     name: quote.name ?? history.quote.name ?? catalogName(symbol),
+    changePercent: quote.changePercent,
   };
 }
