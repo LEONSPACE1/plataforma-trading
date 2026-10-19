@@ -37,7 +37,7 @@ export const CATALOG: Record<MarketGroup, { label: string; entries: CatalogEntry
     label: "Acciones Colombia",
     entries: [
       { symbol: "ECOPETROL.CL", name: "Ecopetrol" },
-      { symbol: "PFCIBEST.CL", name: "Grupo Cibest (Bancolombia) preferencial" },
+      { symbol: "PFBCOLOM.CL", name: "Bancolombia preferencial" },
       { symbol: "ISA.CL", name: "ISA" },
       { symbol: "GEB.CL", name: "Grupo Energía Bogotá" },
       { symbol: "CELSIA.CL", name: "Celsia" },
