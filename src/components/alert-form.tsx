@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ALERT_KINDS, describeAlert, isPriceAlert, type AlertKind } from "@/lib/alerts/rules";
+import { ALERT_KINDS, describeAlert, isPriceAlert, isRsiAlert, needsTarget, type AlertKind } from "@/lib/alerts/rules";
 import { isValidSymbol } from "@/lib/market/symbols";
 import { supabase } from "@/lib/supabase/client";
 
@@ -18,8 +18,9 @@ export function AlertForm({ symbol, price }: { symbol?: string; price?: number }
     e.preventDefault();
     const s = (symbol ?? sym).trim().toUpperCase();
     if (!isValidSymbol(s)) return setStatus({ ok: false, text: "Símbolo inválido." });
-    const value = isPriceAlert(kind) ? Number(target.replace(",", ".")) : null;
-    if (value !== null && !(value > 0)) return setStatus({ ok: false, text: "Escribe el precio objetivo." });
+    const value = needsTarget(kind) ? Number(target.replace(",", ".")) : null;
+    if (value !== null && !(value > 0)) return setStatus({ ok: false, text: isRsiAlert(kind) ? "Escribe el nivel de RSI." : "Escribe el precio objetivo." });
+    if (value !== null && isRsiAlert(kind) && value >= 100) return setStatus({ ok: false, text: "El RSI va de 0 a 100." });
     const { error } = await supabase().from("alerts").insert({ symbol: s, kind, target: value });
     if (error) return setStatus({ ok: false, text: error.message });
     setStatus({ ok: true, text: `Alerta creada: ${describeAlert({ symbol: s, kind, target: value })}.` });
@@ -37,7 +38,16 @@ export function AlertForm({ symbol, price }: { symbol?: string; price?: number }
       )}
       <label className="flex flex-col text-xs text-muted">
         Avisarme cuando
-        <select value={kind} onChange={(e) => setKind(e.target.value as AlertKind)} className={input}>
+        <select
+          value={kind}
+          onChange={(e) => {
+            const next = e.target.value as AlertKind;
+            setKind(next);
+            if (isRsiAlert(next)) setTarget(next === "rsi_above" ? "70" : "30");
+            else if (isRsiAlert(kind)) setTarget("");
+          }}
+          className={input}
+        >
           {ALERT_KINDS.map((k) => (
             <option key={k.value} value={k.value}>
               {k.label}
@@ -45,6 +55,12 @@ export function AlertForm({ symbol, price }: { symbol?: string; price?: number }
           ))}
         </select>
       </label>
+      {isRsiAlert(kind) && (
+        <label className="flex flex-col text-xs text-muted">
+          Nivel de RSI
+          <input value={target} onChange={(e) => setTarget(e.target.value)} inputMode="decimal" className={`${input} w-24`} required />
+        </label>
+      )}
       {isPriceAlert(kind) && (
         <label className="flex flex-col text-xs text-muted">
           Precio objetivo
@@ -62,8 +78,9 @@ export function AlertForm({ symbol, price }: { symbol?: string; price?: number }
       {status && <p className={`w-full text-sm ${status.ok ? "text-up" : "text-down"}`}>{status.text}</p>}
       {!isPriceAlert(kind) && (
         <p className="w-full text-xs text-muted">
-          La señal se revisa cada hora. La primera revisión guarda la señal actual y te avisamos cuando pase a Comprar, Mantener o
-          Vender.
+          {needsTarget(kind) || kind === "ma_cross" || kind === "macd_cross"
+            ? "El indicador se revisa cada hora sobre velas diarias. La primera revisión guarda dónde está y te avisamos cuando cruce la línea."
+            : "La señal se revisa cada hora. La primera revisión guarda la señal actual y te avisamos cuando pase a Comprar, Mantener o Vender."}
         </p>
       )}
     </form>

@@ -8,6 +8,9 @@ import { Header } from "@/components/header";
 import { useQuotes, useWatchlists } from "@/components/hooks";
 import { AlertForm } from "@/components/alert-form";
 import { AnalysisPanel } from "@/components/analysis-panel";
+import { BacktestPanel } from "@/components/backtest-panel";
+import { AssetEventsPanel } from "@/components/events-list";
+import { NewsList } from "@/components/news-list";
 import { PositionForm } from "@/components/position-form";
 import { PriceChart, STUDIES, type Study } from "@/components/price-chart";
 import { catalogName } from "@/lib/market/catalog";
@@ -112,6 +115,9 @@ function Asset() {
       )}
 
       <AnalysisPanel symbol={symbol} />
+      <BacktestPanel symbol={symbol} />
+      <AssetEventsPanel symbol={symbol} />
+      <NewsList symbol={symbol} />
 
       {lists && lists.length > 0 && (
         <section className="mt-6">

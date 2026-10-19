@@ -23,6 +23,7 @@ export function NotificationSettings() {
       <PushSetting />
       <TelegramSetting />
       <TestButton />
+      <SummarySetting />
     </section>
   );
 }
@@ -213,6 +214,57 @@ function TestButton() {
     <div>
       <button onClick={test} className={button}>
         Enviar notificación de prueba
+      </button>
+      {result && <p className="mt-1 text-sm text-muted">{result}</p>}
+    </div>
+  );
+}
+
+function SummarySetting() {
+  const [on, setOn] = useState<boolean | null>(null);
+  const [result, setResult] = useState<string | null>(null);
+
+  useEffect(() => {
+    supabase()
+      .from("user_settings")
+      .select("daily_summary")
+      .maybeSingle()
+      .then(({ data }) => setOn(data?.daily_summary ?? true));
+  }, []);
+
+  const toggle = async (value: boolean) => {
+    setOn(value);
+    const { data } = await supabase().auth.getUser();
+    const { error } = await supabase()
+      .from("user_settings")
+      .upsert({ user_id: data.user?.id, daily_summary: value, updated_at: new Date().toISOString() });
+    if (error) {
+      setOn(!value);
+      setResult(error.message);
+    }
+  };
+
+  const sendNow = async () => {
+    setResult("Enviando…");
+    try {
+      const r = await apiFetch<{ push: number; telegram: boolean; errors: string[] }>("/api/summary-test", { body: {} });
+      const parts = [r.push ? `${r.push} dispositivo${r.push > 1 ? "s" : ""}` : null, r.telegram ? "Telegram" : null].filter(Boolean);
+      setResult(parts.length ? `Resumen enviado a ${parts.join(" y ")}.` : "No hay ningún canal activo.");
+    } catch (e) {
+      setResult(e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  return (
+    <div>
+      <h3 className="text-sm font-semibold">Resumen diario</h3>
+      <label className="flex items-center gap-2 text-sm text-muted">
+        <input type="checkbox" checked={on ?? true} disabled={on === null} onChange={(e) => toggle(e.target.checked)} />
+        De lunes a viernes a las 4:15 p. m. (hora de Colombia): lo que más se movió en tus listas, el resultado del día de tu
+        portafolio, las señales que cambiaron y los resultados o dividendos de la próxima sesión.
+      </label>
+      <button onClick={sendNow} className={`${button} mt-2`}>
+        Enviarme el resumen ahora
       </button>
       {result && <p className="mt-1 text-sm text-muted">{result}</p>}
     </div>

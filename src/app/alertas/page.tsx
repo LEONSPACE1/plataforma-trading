@@ -6,7 +6,7 @@ import { RequireAuth } from "@/components/auth";
 import { Header } from "@/components/header";
 import { useOwnRows } from "@/components/hooks";
 import { NotificationSettings } from "@/components/notification-settings";
-import { describeAlert, isPriceAlert, VERDICT_LABEL, type Alert } from "@/lib/alerts/rules";
+import { describeAlert, isIndicatorAlert, isPriceAlert, VERDICT_LABEL, type Alert } from "@/lib/alerts/rules";
 
 type AlertEvent = { id: string; symbol: string; title: string; body: string; created_at: string };
 
@@ -108,7 +108,7 @@ function Alerts() {
       </section>
 
       <p className="text-xs text-muted">
-        El servidor revisa las alertas de precio cada minuto, aunque tengas la app cerrada; las de señal, cada hora. Las acciones
+        El servidor revisa las alertas de precio cada minuto, aunque tengas la app cerrada; las de señal e indicadores, cada hora. Las acciones
         de Colombia llegan con unos 15 minutos de retraso. Las señales son orientativas y no constituyen asesoría financiera.
       </p>
     </main>
@@ -117,6 +117,10 @@ function Alerts() {
 
 function status(a: Alert): string {
   if (isPriceAlert(a.kind)) return a.active ? "Activa" : "Disparada (se desactivó)";
+  if (isIndicatorAlert(a.kind)) {
+    if (!a.last_state) return "Activa · esperando la primera revisión";
+    return `Activa · ahora ${a.last_state === "arriba" ? "por encima" : "por debajo"}`;
+  }
   if (!a.last_verdict) return "Activa · esperando la primera revisión";
   return `Activa · señal actual: ${VERDICT_LABEL[a.last_verdict]}`;
 }

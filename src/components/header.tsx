@@ -10,6 +10,8 @@ import { useSession } from "./auth";
 const NAV = [
   { href: "/", label: "Mercado" },
   { href: "/portafolio", label: "Portafolio" },
+  { href: "/screener", label: "Screener" },
+  { href: "/calendario", label: "Calendario" },
   { href: "/alertas", label: "Alertas" },
 ];
 
@@ -74,7 +76,7 @@ export function Header() {
           Salir
         </button>
       </div>
-      <nav className="mx-auto flex max-w-5xl gap-4 px-4 pb-2 text-sm">
+      <nav className="mx-auto flex max-w-5xl gap-4 overflow-x-auto px-4 pb-2 text-sm">
         {NAV.map((n) => (
           <Link
             key={n.href}

@@ -14,6 +14,9 @@ Incluye análisis técnico y fundamental con una señal explicada, un portafolio
 | Divisas (USDCOP=X…) | Yahoo Finance | Casi en tiempo real |
 | Gráficos (velas) de todo | Yahoo Finance | — |
 | Fundamentales (P/E, márgenes, deuda) y dividendos | Yahoo Finance (series de estados financieros) | Último reporte trimestral |
+| Fechas de resultados (EE. UU.) | Finnhub, calendario de resultados | — |
+| Noticias | Yahoo Finance (EE. UU.) y Google Noticias en español (Colombia) | — |
+| TRM oficial | datos.gov.co (Superintendencia Financiera) | Diaria |
 
 Yahoo Finance no es una API oficial: es gratis pero puede cambiar sin aviso. Las cotizaciones se refrescan cada 15 segundos mientras la pestaña está abierta.
 
@@ -26,6 +29,15 @@ La página de cada activo calcula, sobre dos años de velas diarias, medias móv
 En **Portafolio** cada usuario registra sus compras (activo, cantidad, precio y fecha) y ve el valor actual, la ganancia o pérdida y el cambio del día, con totales por moneda y un total consolidado en COP usando `USDCOP=X`.
 
 En **Alertas** se crean alertas de precio (sube a / baja a, se disparan una vez) y de cambio de señal (general o solo técnica, con las mismas reglas de la sección anterior). Supabase `pg_cron` llama cada minuto a `/api/cron/alerts`, que revisa precios en cada llamada y señales cada hora, guarda el historial y envía notificaciones push (Web Push con claves VAPID, `public/sw.js`) y mensajes de Telegram. El chat de Telegram se vincula con un enlace `t.me/<bot>?start=<código>` sin webhook. Reglas en `src/lib/alerts/`.
+
+## Screener, calendario, noticias y prueba histórica
+
+- **Screener** (`/screener`): unas 140 acciones y ETF de EE. UU. y Colombia (`src/lib/market/universe.ts`) más los activos que los usuarios tengan en listas o portafolio. La misma revisión programada analiza 8 por minuto y renueva cada uno una vez al día en la tabla `screener`.
+- **Calendario** (`/calendario`): próximas fechas de resultados (Finnhub, solo EE. UU.) y la próxima fecha ex-dividendo estimada con la frecuencia de los pagos pasados.
+- **Página de cada activo**: noticias, próximos eventos y una prueba histórica de la señal técnica sobre 5 años frente a comprar y mantener (`src/lib/analysis/backtest.ts`).
+- **Alertas por indicador**: RSI que cruza un nivel, cruce de medias 50/200 y cruce del MACD; se revisan cada hora y avisan solo al cruzar.
+- **Resumen diario**: de lunes a viernes a las 4:15 p. m. de Colombia llega por push y Telegram lo que más se movió, el resultado del día del portafolio, las señales que cambiaron y los eventos de la próxima sesión. Cada usuario lo apaga en **Alertas**.
+- **Portafolio**: dividendos cobrados desde cada compra, rendimiento frente al S&P 500 (SPY) o al COLCAP (ICOLCAP), mezcla por mercado y conversión con el dólar en vivo o la TRM oficial.
 
 ## Puesta en marcha (una sola vez)
 
@@ -53,6 +65,7 @@ Regístrate en <https://finnhub.io/register> y copia la API key. Sin ella todo f
 1. En **SQL Editor** ejecuta `supabase/migrations/0002_portafolio_alertas.sql`.
 2. En Vercel agrega `SUPABASE_SERVICE_ROLE_KEY`, `CRON_SECRET`, `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` y `TELEGRAM_BOT_TOKEN` (ver `.env.example`) y vuelve a desplegar.
 3. En **SQL Editor** ejecuta `supabase/cron_alertas.sql` con tu `CRON_SECRET`.
+4. En **SQL Editor** ejecuta `supabase/migrations/0003_mejoras.sql` (alertas por indicador, resumen diario y screener).
 
 ### 5. Instalar en el celular
 
@@ -71,10 +84,11 @@ npm test                     # pruebas
 
 - `src/lib/market/` — clientes de Yahoo y Finnhub y la lógica que elige la fuente por símbolo.
 - `src/lib/analysis/` — indicadores técnicos y la señal explicada.
-- `src/lib/alerts/` — reglas de alertas, la revisión programada y el envío por push y Telegram.
+- `src/lib/alerts/` — reglas de alertas, el resumen diario, la revisión programada y el envío por push y Telegram.
+- `src/lib/jobs/` — trabajos de la revisión programada: renovar el screener y mandar los resúmenes diarios.
 - `src/lib/portfolio.ts` — cálculo de ganancias y pérdidas.
 - `src/app/api/` — rutas del servidor; solo responden a usuarios con sesión, salvo `cron/alerts`, que exige `CRON_SECRET`.
-- `src/app/` — pantallas: tablero (`/`), detalle de activo (`/activo/[símbolo]`), portafolio (`/portafolio`), alertas (`/alertas`), acceso (`/login`).
+- `src/app/` — pantallas: tablero (`/`), detalle de activo (`/activo/[símbolo]`), portafolio (`/portafolio`), screener (`/screener`), calendario (`/calendario`), alertas (`/alertas`), acceso (`/login`).
 - `supabase/migrations/` — tablas y reglas de seguridad (cada usuario solo ve sus datos); `supabase/cron_alertas.sql` programa la revisión de alertas.
 
 > Las señales y recomendaciones de esta plataforma son orientativas y no constituyen asesoría financiera.
