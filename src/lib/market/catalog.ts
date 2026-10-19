@@ -49,9 +49,9 @@ export const CATALOG: Record<MarketGroup, { label: string; entries: CatalogEntry
   "co-indices": {
     label: "Índices Colombia",
     entries: [
-      { symbol: "^COLCAP", name: "MSCI COLCAP" },
-      { symbol: "ICOLCAP.CL", name: "iShares MSCI COLCAP ETF" },
-      { symbol: "GXG", name: "Global X MSCI Colombia ETF (EE. UU.)" },
+      // Yahoo has no feed for the MSCI COLCAP index itself; this ETF tracks it.
+      { symbol: "ICOLCAP.CL", name: "iShares MSCI COLCAP ETF (sigue al COLCAP)" },
+      { symbol: "COLO", name: "Global X MSCI Colombia ETF (EE. UU.)" },
     ],
   },
   fx: {
