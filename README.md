@@ -13,8 +13,13 @@ Próximos pasos del plan: análisis técnico y fundamental con señales, portafo
 | Acciones e índices de Colombia (`.CL`) | Yahoo Finance | No, ~15–20 min de retraso |
 | Divisas (USDCOP=X…) | Yahoo Finance | Casi en tiempo real |
 | Gráficos (velas) de todo | Yahoo Finance | — |
+| Fundamentales (P/E, márgenes, deuda) y dividendos | Yahoo Finance (series de estados financieros) | Último reporte trimestral |
 
 Yahoo Finance no es una API oficial: es gratis pero puede cambiar sin aviso. Las cotizaciones se refrescan cada 15 segundos mientras la pestaña está abierta.
+
+## Análisis y señal
+
+La página de cada activo calcula, sobre dos años de velas diarias, medias móviles (20, 50, 200), RSI (14), MACD (12, 26, 9), bandas de Bollinger (20, 2) y volumen, y para acciones el P/E, los márgenes, la deuda / patrimonio y el dividendo de los últimos 12 meses. Cada regla vota a favor, neutral o en contra y explica por qué; el puntaje combina 60 % técnico y 40 % fundamental (solo técnico si no hay fundamentales) y da **Comprar** (≥ +30), **Vender** (≤ −30) o **Mantener**. Es una señal orientativa, no asesoría financiera. Las reglas están en `src/lib/analysis/signal.ts`.
 
 ## Puesta en marcha (una sola vez)
 
@@ -53,6 +58,7 @@ npm test                     # pruebas
 ## Estructura
 
 - `src/lib/market/` — clientes de Yahoo y Finnhub y la lógica que elige la fuente por símbolo.
+- `src/lib/analysis/` — indicadores técnicos y la señal explicada.
 - `src/app/api/` — rutas del servidor (`quotes`, `candles`, `search`); solo responden a usuarios con sesión.
 - `src/app/` — pantallas: tablero (`/`), detalle de activo (`/activo/[símbolo]`), acceso (`/login`).
 - `supabase/migrations/` — tablas y reglas de seguridad (cada usuario solo ve sus listas).

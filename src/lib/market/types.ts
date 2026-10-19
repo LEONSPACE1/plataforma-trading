@@ -33,3 +33,22 @@ export type SearchResult = {
 };
 
 export type ChartRange = "1d" | "5d" | "1mo" | "6mo" | "1y" | "5y";
+
+export type Dividend = { /** Unix seconds (ex-date). */ time: number; amount: number };
+
+/**
+ * Raw figures from the company's latest reports, in the reporting currency
+ * (which can differ from the trading currency, e.g. an ADR priced in USD).
+ */
+export type Fundamentals = {
+  currency?: string;
+  /** Date of the newest report used, YYYY-MM-DD. */
+  asOf?: string;
+  eps?: number;
+  revenue?: number;
+  grossProfit?: number;
+  operatingIncome?: number;
+  netIncome?: number;
+  totalDebt?: number;
+  equity?: number;
+};
